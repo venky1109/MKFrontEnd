@@ -17,7 +17,9 @@ import { useDispatch, useSelector } from 'react-redux';
 const RegisterScreen = () => {
   const [otp, setOtp] = useState("");
   const [ph, setPh] = useState("");
-  const [loading, setLoading] = useState(false);
+  // const [loading,setLoading] = useState("");
+  const [sendOTPloading, setSendOTPloading] = useState(false);
+  const [sendVerifyOTPloading, setSendVerifyOTPloading] = useState(false);
   const [showOTP, setShowOTP] = useState(false);
   const [user, setUser] = useState(null);
   const [name, setName] = useState('');
@@ -25,7 +27,11 @@ const RegisterScreen = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [isButtonDisabled, setButtonDisabled] = useState(true);
+  const [isVButtonDisabled, setVButtonDisabled] = useState(false);
 
+
+ 
   const [register, { isLoading }] = useRegisterMutation();
  
 
@@ -55,8 +61,18 @@ const RegisterScreen = () => {
     }
   }
 
+  // Use useEffect to monitor changes to the phone number value
+  useEffect(() => {
+    // Enable the button if the phone number is not null or empty
+    if (ph && ph.trim() !== '' && ph.length===12) {
+      setButtonDisabled(false);
+    } else {
+      setButtonDisabled(true);
+    }
+  }, [ph]); // Run this effect whenever the 'ph' state changes
+
   function onSignup() {
-    setLoading(true);
+    setSendOTPloading(true);
     onCaptchVerify();
 
     const appVerifier = window.recaptchaVerifier;
@@ -66,22 +82,30 @@ const RegisterScreen = () => {
     signInWithPhoneNumber(auth, formatPh, appVerifier)
       .then((confirmationResult) => {
         window.confirmationResult = confirmationResult;
-        setLoading(false);
+        setSendOTPloading(false);
         setShowOTP(true);
         toast.success("OTP sent successfully!");
       })
       .catch((error) => {
         console.log(error);
-        setLoading(false);
+        setSendOTPloading(false);
       });
   }
 
 
   const sendOTP = async() => {
     try{
-
       
-
+      console.log(ph+'name '+name)
+      if (ph && name) {
+        // Disable the button
+        setButtonDisabled(true);
+    
+        // Set a timeout to re-enable the button after 5 minutes
+        setTimeout(() => {
+          setButtonDisabled(false);
+        }, 300000); // 5 minutes in milliseconds
+      }
       
     //  console.log('sendOTP name'+name +'ph'+ph );
     // console.log('ph'+ph )
@@ -89,46 +113,48 @@ const RegisterScreen = () => {
   
  
  
-
+    setSendOTPloading(true);
     onCaptchVerify();
-    // const appVerifier = window.recaptchaVerifier;
-    // const formatPh = "+" + ph;
+    const appVerifier = window.recaptchaVerifier;
+    const formatPh = "+" + ph;
 
-    // signInWithPhoneNumber(auth, formatPh, appVerifier)
-    //   .then((confirmationResult) => {
-    //     window.confirmationResult = confirmationResult;
-    //     setLoading(false);
-    //     setShowOTP(true);
-    //     toast.success("OTP sent successfully!");
-    //   })
-    //   .catch((error) => {
-    //     console.log(error);
-    //     setLoading(false);
-    //   });
-         setLoading(false);
+    signInWithPhoneNumber(auth, formatPh, appVerifier)
+      .then((confirmationResult) => {
+        window.confirmationResult = confirmationResult;
+        setSendOTPloading(false);
         setShowOTP(true);
         toast.success("OTP sent successfully!");
+      })
+      .catch((error) => {
+        console.log(error);
+        setSendOTPloading(false);
+      });
+        //  setSendOTPloading(false);
+        // setShowOTP(true);
+        // toast.success("OTP sent successfully!");
     }
     catch(err){
       toast.error(err?.data?.message || err.error);
     }
   };
+  
 
-  const verifyOTP = () => {
-    setLoading(true);
-    // window.confirmationResult
-    //   .confirm(otp)
-    //   .then(async (res) => {
-    //     setUser(res.user);
-    //     setLoading(false);
-    //   })
-    //   .catch((err) => {
-    //     console.log(err);
-    //     setLoading(false);
-    //   });
-
-      setUser('user');
-      setLoading(false);
+  const verifyOTP = async() => {
+    setSendVerifyOTPloading(true);
+    window.confirmationResult
+      .confirm(otp)
+      .then(async (res) => {
+        setUser(res.user);
+        setSendVerifyOTPloading(false);
+    setVButtonDisabled(true);
+      })
+      .catch((err) => {
+        console.log(err);
+        setSendVerifyOTPloading(false);
+    setVButtonDisabled(false);
+      });
+      
+     
   };
 
   
@@ -140,8 +166,8 @@ const RegisterScreen = () => {
       toast.error('Passwords do not match');
     } else {
       try {
-        // console.log('name'+name +'ph'+ph +'pasword'+password)
-        const res = await register({ name, phoneNo:ph, password }).unwrap();
+ 
+        const res = await register({ name, phoneNo:ph.slice(2), password }).unwrap();
         console.log('res'+res )
         dispatch(setCredentials({ ...res }));
         navigate(redirect);
@@ -169,15 +195,25 @@ const RegisterScreen = () => {
             </Form.Group>
             <Form.Group controlId='phone'>
               <Form.Label>Phone Number</Form.Label>
-              <PhoneInput disableDropdown="true" country={"in"} value={ph}  onChange={(value) => setPh(value)}    />
+              <PhoneInput 
+              isValid={(value, country) => {
+                if (value.match(/12345/)) {
+                  return 'Invalid value: '+value+', '+country.name;
+                } else if (value.match(/1234/)) {
+                  return false;
+                } else {
+                  return true;
+                }
+              }}
+              disableDropdown="true" country={"in"} value={ph}  onChange={(value) => setPh(value)}    />
             </Form.Group>
             <Button
               onClick={sendOTP}
               variant='outline-success'
               className="flex gap-1 items-center justify-center py-2.5 my-2 rounded"
-              
+              disabled={isButtonDisabled}
             >
-              {loading && (
+              {sendOTPloading && (
                 <CgSpinner size={20} className="mt-1 animate-spin" />
               )}
               <span>Send OTP via SMS</span>
@@ -198,8 +234,9 @@ const RegisterScreen = () => {
                   onClick={verifyOTP}
                   variant='outline-success'
                   className="flex gap-1 items-center justify-center py-2.5 my-2 rounded"
+                  disabled={isVButtonDisabled}
                 >
-                  {loading && (
+                  {sendVerifyOTPloading && (
                     <CgSpinner size={20} className="mt-1 animate-spin" />
                   )}
                   <span>Verify OTP</span>
@@ -228,11 +265,12 @@ const RegisterScreen = () => {
                       disabled={isLoading}
                       variant='primary'
                       type='submit'
+                      className="my-2"
                     >
                       Register
                     </Button>
                   </>
-                ) : (<h1>OTP not matching</h1>)}
+                ) : (<h6>Enter OTP and click on verify OTP button  </h6>)}
               </>
             )}
             {isLoading && <Loader />}
